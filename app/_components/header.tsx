@@ -7,7 +7,7 @@ const Header = () => {
   return (
     <Card>
       <CardContent className="p-5 justify-between items-center flex flex-row">
-        <Image src="" alt="FSW BARBER" height={18} width={120}></Image>
+        <Image src="/log.jpg" alt="FSW BARBER" height={10} width={50}></Image>
         <Button variant="outline" size="icon" className="h-8 w-8">
           <MenuIcon size={16}></MenuIcon>
         </Button>
