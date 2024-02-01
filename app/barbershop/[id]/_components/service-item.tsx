@@ -13,11 +13,15 @@ import {
 } from "@/app/_components/ui/sheet";
 import { Barbershop, Service } from "@prisma/client";
 import { ptBR } from "date-fns/locale";
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { generateDayTimeList } from "../_helpers/hours";
-import { format } from "date-fns";
+import { format, setMinutes, setHours } from "date-fns";
+import { saveBooking } from "../_actions/serve-booking";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 interface ServiceItemProps {
   barbershop: Barbershop;
@@ -30,8 +34,12 @@ const ServiceItem = ({
   isAuthenticated,
   barbershop,
 }: ServiceItemProps) => {
-  const [date, setDate] = useState<Date | undefined>(new Date());
+  const router = useRouter();
+  const { data } = useSession();
+  const [date, setDate] = useState<Date | undefined>(undefined);
   const [hour, setHour] = useState<string | undefined>();
+  const [submitIsLoading, setSubmitIsLoading] = useState(false);
+  const [sheetIsOpen, setSheetIsOpen] = useState(false);
 
   const handleDateClick = (date: Date | undefined) => {
     setDate(date);
@@ -45,6 +53,43 @@ const ServiceItem = ({
   const handleBookingClick = () => {
     if (!isAuthenticated) {
       return signIn("google");
+    }
+  };
+
+  const handleBookingSubmit = async () => {
+    setSubmitIsLoading(true);
+    try {
+      if (!hour || !date || !data?.user) {
+        return;
+      }
+
+      const dateHour = Number(hour.split(":")[0]);
+
+      const dateMinutes = Number(hour.split(":")[1]);
+
+      const newDate = setMinutes(setHours(date, dateHour), dateMinutes);
+      await saveBooking({
+        serviceId: service.id,
+        barbershopId: barbershop.id,
+        date: newDate,
+        userId: (data.user as any).id,
+      });
+      setSheetIsOpen(false);
+      setHour(undefined);
+      setDate(undefined);
+      toast("Reservada realizada com sucesso", {
+        description: format(newDate, "'Para' dd 'de' MMMM 'ás' HH':'mm'.'", {
+          locale: ptBR,
+        }),
+        action: {
+          label: "Vizualizar",
+          onClick: () => router.push("/bookings"),
+        },
+      });
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setSubmitIsLoading(false);
     }
   };
 
@@ -79,7 +124,7 @@ const ServiceItem = ({
                   currency: "BRL",
                 }).format(Number(service.price))}
               </p>
-              <Sheet>
+              <Sheet open={sheetIsOpen} onOpenChange={setSheetIsOpen}>
                 <SheetTrigger asChild>
                   <Button variant="secondary" onClick={handleBookingClick}>
                     Reservar
@@ -171,7 +216,15 @@ const ServiceItem = ({
                     </Card>
                   </div>
                   <SheetFooter className="px-5 absolute bottom-3 w-full ">
-                    <Button disabled={!hour || !date}>Confirma reserva</Button>
+                    <Button
+                      onClick={handleBookingSubmit}
+                      disabled={!hour || !date || submitIsLoading}
+                    >
+                      {submitIsLoading && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin"></Loader2>
+                      )}
+                      Confirma reserva
+                    </Button>
                   </SheetFooter>
                 </SheetContent>
               </Sheet>
